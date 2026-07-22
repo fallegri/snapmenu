@@ -783,6 +783,178 @@ La arquitectura se diseñó priorizando:
 
 ## 8. Diseño del Modelo ML y Pipeline de Datos
 
+> ### ⚠️ ADDENDUM v1.1 — Cambio de Estrategia ML (2026-07-22)
+>
+> Tras el análisis del dataset real disponible (Kaggle: `compilado-de-ingredientesalimentos`),
+> se identificó que el dataset es de **clasificación** (una imagen = un ingrediente) y **NO tiene
+> anotaciones de bounding box**. Por esta razón, la estrategia se adapta:
+>
+> | Aspecto | SDD Original (v1.0) | Estrategia Revisada (v1.1) |
+> |---------|--------------------|-----------------------------|
+> | **Problema ML** | Detección de objetos (multi-ingrediente) | Clasificación de imagen (un ingrediente por foto) |
+> | **Modelo** | YOLOv8n (Object Detection) | EfficientNetV2-S (Image Classification) |
+> | **Input** | 640×640 stream de cámara | 224×224 foto individual |
+> | **Output** | Bounding boxes + clases | Top-K clases + probabilidades |
+> | **UX** | Apuntar cámara en vivo (streaming) | Tomar foto → clasificar → agregar a lista |
+> | **Dataset** | Requería anotaciones bbox | Funciona directo con carpetas por clase ✅ |
+> | **Entrenamiento** | GPU potente requerida | Kaggle/Colab gratis (P100/T4) ✅ |
+> | **Tamaño modelo** | ~6-15MB (YOLOv8n quantizado) | ~5-10MB (EfficientNetV2-S quantizado) |
+> | **Latencia** | <2s por frame | <500ms por foto |
+>
+> **Roadmap de evolución:**
+> - **v1.0:** Clasificación (EfficientNetV2-S) — dataset actual sin modificar
+> - **v1.2+:** Detección (YOLOv8n) — cuando se anoten bounding boxes (auto-labeling con modelo v1 como pre-anotador)
+>
+> La arquitectura de software (Clean Architecture, interfaces, DI) NO cambia. Solo se
+> sustituye la implementación concreta: `TFLiteClassifier` en lugar de `TFLiteDetector`,
+> ambos implementando la misma interfaz `IngredientDetectorPort` (principio LSP/DIP).
+
+### 8.0 Dataset Real — Análisis del Dataset Disponible
+
+| Aspecto | Valor |
+|---------|-------|
+| **Fuente** | Kaggle: `guigasousa/compilado-de-ingredientesalimentos` |
+| **Total imágenes** | 43,515 |
+| **Categorías** | 35 ingredientes |
+| **Anotaciones bbox** | ❌ No disponibles |
+| **Formato** | Carpetas por clase (`/train/chicken/*.jpg`) |
+| **Resolución** | Variable (168px a 1612px) — normalizado a 224×224 |
+| **Balance** | Desbalanceado (apple: 7013 vs black_beans: 164) |
+| **Split original** | Solo `train/` — creamos splits 70/15/15 |
+
+#### Categorías del Dataset
+
+| Categoría (EN) | Nombre (ES) | Imágenes | Balance |
+|----------------|-------------|----------|---------|
+| apple | manzana | 7,013 | ↓ subsample a 2000 |
+| carrots | zanahoria | 2,739 | ↓ subsample a 2000 |
+| cauliflower | coliflor | 2,139 | ↓ subsample a 2000 |
+| corn | maíz | 2,027 | ↓ subsample a 2000 |
+| cabbage | repollo | 2,014 | ↓ subsample a 2000 |
+| avocado | palta | 1,792 | ✓ ok |
+| butter | mantequilla | 1,561 | ✓ ok |
+| chicken | pollo | 1,412 | ✓ ok |
+| broccoli | brócoli | 1,321 | ✓ ok |
+| cheese | queso | 1,314 | ✓ ok |
+| bacon | tocino | 1,306 | ✓ ok |
+| bread | pan | 1,304 | ✓ ok |
+| crab | cangrejo | 1,300 | ✓ ok |
+| coconut | coco | 1,300 | ✓ ok |
+| chocolate | chocolate | 1,300 | ✓ ok |
+| cherries | cerezas | 1,300 | ✓ ok |
+| celery | apio | 1,300 | ✓ ok |
+| blackberries | moras | 1,300 | ✓ ok |
+| beef | carne de res | 1,300 | ✓ ok |
+| beans | frijoles | 1,300 | ✓ ok |
+| bagels | bagel | 1,300 | ✓ ok |
+| banana | plátano | 1,236 | ✓ ok |
+| cilantro leaves | cilantro | 849 | ✓ ok |
+| capsicum | pimiento | 498 | ✓ ok |
+| apricot | damasco | 492 | ✓ ok |
+| cranberries | arándanos | 438 | ✓ ok |
+| beetroot | betarraga | 412 | ✓ ok |
+| brown sugar | azúcar morena | 336 | ⚠ augmentation |
+| black pepper | pimienta negra | 330 | ⚠ augmentation |
+| chili powder | ají en polvo | 282 | ⚠ augmentation |
+| bay leaves | laurel | 282 | ⚠ augmentation |
+| baking powder | polvo de hornear | 226 | ⚠ augmentation |
+| chilli | ají | 190 | ⚠ augmentation |
+| corn starch | maicena | 182 | ⚠ augmentation |
+| black beans | frijoles negros | 164 | ⚠ augmentation |
+
+### 8.0.1 Modelo Seleccionado — EfficientNetV2-S
+
+| Aspecto | Detalle |
+|---------|---------|
+| **Arquitectura** | EfficientNetV2-S (Small) |
+| **Pre-entrenamiento** | ImageNet-1K (1000 clases) |
+| **Input** | 224×224×3 (RGB normalizado) |
+| **Output** | Vector de 35 probabilidades (softmax) |
+| **Parámetros totales** | ~21.5M |
+| **Parámetros entrenables (Phase 1)** | ~270K (solo classifier head) |
+| **Tamaño FP32** | ~85MB |
+| **Tamaño quantizado (FP16)** | ~42MB |
+| **Tamaño quantizado (INT8)** | ~22MB |
+| **Latencia esperada (mobile)** | 200-500ms |
+
+#### ¿Por qué EfficientNetV2-S sobre otras opciones?
+
+| Modelo | Accuracy ImageNet | Size (MB) | Latencia Mobile | Decisión |
+|--------|-------------------|-----------|-----------------|----------|
+| MobileNetV3-Large | 75.2% | 5.4 | 30ms | Descartado — accuracy insuficiente para 35 clases similares |
+| EfficientNetV2-S | **84.2%** | 22 (INT8) | 300ms | **SELECCIONADO** — mejor accuracy con tamaño aceptable |
+| EfficientNetV2-M | 85.1% | 55 (INT8) | 600ms | Backup — si S no alcanza targets |
+| ResNet50 | 80.4% | 25 (INT8) | 400ms | Descartado — EfficientNetV2 es superior en accuracy/size |
+| ViT-B/16 | 85.0% | 86 (INT8) | 1200ms | Descartado — demasiado pesado para mobile |
+
+### 8.0.2 Estrategia de Entrenamiento (2 Fases)
+
+```
+┌──────────────── TRAINING STRATEGY v1.1 ────────────────────────────┐
+│                                                                     │
+│  PHASE 1: TRAIN CLASSIFIER HEAD (Backbone Frozen)                  │
+│  ─────────────────────────────────────────────────                  │
+│  • Epochs: 10                                                       │
+│  • Learning Rate: 1e-3 (cosine decay)                              │
+│  • Capas entrenadas: Classifier head solamente (270K params)       │
+│  • Propósito: Adaptar la capa de salida a nuestras 35 clases      │
+│  • Resultado esperado: ~70-80% accuracy rápidamente                │
+│                                                                     │
+│  PHASE 2: FINE-TUNE ALL LAYERS                                     │
+│  ─────────────────────────────────────────────────                  │
+│  • Epochs: 40 (early stopping patience=10)                         │
+│  • Learning Rate: 1e-4 (cosine with warm restarts)                 │
+│  • Capas entrenadas: TODAS (21.5M params)                          │
+│  • Técnicas: Mixup (α=0.2), Label Smoothing (0.1), Class Weights  │
+│  • Propósito: Ajuste fino para ingredientes específicos            │
+│  • Resultado esperado: ≥ 90% accuracy, ≥ 88% F1                  │
+│                                                                     │
+│  HARDWARE: Kaggle GPU (P100 16GB) — Tiempo estimado: 2-4 horas    │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 8.0.3 Pipeline de Inferencia Revisado (Clasificación)
+
+```
+┌──────────── INFERENCE PIPELINE (Classification) ──────────────────┐
+│                                                                    │
+│  [1] Usuario toma FOTO de un ingrediente                          │
+│       │                                                            │
+│       ▼                                                            │
+│  [2] Pre-procesamiento                                            │
+│       • Resize a 256px (lado menor)                               │
+│       • Center crop a 224×224                                     │
+│       • Normalizar con mean/std de ImageNet                       │
+│       │                                                            │
+│       ▼                                                            │
+│  [3] Inferencia TFLite (on-device)                                │
+│       • Input: tensor [1, 3, 224, 224]                            │
+│       • Output: vector [35] probabilidades                        │
+│       • Latencia: ~200-500ms                                      │
+│       │                                                            │
+│       ▼                                                            │
+│  [4] Post-procesamiento                                           │
+│       • Softmax → probabilidades                                  │
+│       • Top-K (K=3) clases con confidence > 0.7                   │
+│       • Mapeo class_id → nombre ingrediente (ES)                  │
+│       │                                                            │
+│       ▼                                                            │
+│  [5] UI: Mostrar resultado + confirmar                            │
+│       • "¿Es esto POLLO? (94%)"                                  │
+│       • Botones: ✓ Sí | ✗ No, es otro | 📷 Escanear más         │
+│       │                                                            │
+│       ▼                                                            │
+│  [6] Agregar a lista de ingredientes                              │
+│       • Modo acumulativo (puede seguir escaneando)                │
+│       • Cuando listo → ir al Motor de Menú                        │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+
 ### 8.1 Visión General del Sistema ML
 
 ```

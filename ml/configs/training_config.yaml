@@ -1,0 +1,73 @@
+# SnapMenu ML - Training Configuration
+
+model:
+  architecture: "efficientnet_v2_s"   # Small variant - good balance
+  pretrained: true                     # ImageNet weights
+  num_classes: 35                      # 35 ingredient categories
+  dropout: 0.3                         # Classifier head dropout
+  freeze_backbone_epochs: 10           # Epochs with frozen backbone
+
+training:
+  # Phase 1: Train classifier head only
+  phase1:
+    epochs: 10
+    learning_rate: 1.0e-3
+    weight_decay: 1.0e-4
+    scheduler: "cosine"
+    warmup_epochs: 2
+
+  # Phase 2: Fine-tune all layers
+  phase2:
+    epochs: 40
+    learning_rate: 1.0e-4
+    weight_decay: 1.0e-5
+    scheduler: "cosine_with_restarts"
+    warmup_epochs: 3
+    min_lr: 1.0e-6
+
+  # Common settings
+  batch_size: 32
+  num_workers: 2                       # Kaggle has 2 CPUs
+  optimizer: "adamw"
+  label_smoothing: 0.1
+  mixup_alpha: 0.2                     # Mixup augmentation
+  early_stopping:
+    patience: 10
+    monitor: "val_f1"
+    mode: "max"
+
+  # Gradient accumulation (simulates larger batch on limited GPU)
+  gradient_accumulation_steps: 2       # Effective batch = 64
+
+evaluation:
+  metrics:
+    - "accuracy"
+    - "f1_weighted"
+    - "precision_weighted"
+    - "recall_weighted"
+    - "top3_accuracy"
+  
+  targets:
+    accuracy: 0.90
+    f1_weighted: 0.88
+    top3_accuracy: 0.97
+
+export:
+  formats:
+    - "onnx"
+    - "tflite_fp16"
+    - "tflite_int8"
+  
+  tflite:
+    quantization: "int8"               # Full integer quantization
+    representative_dataset_size: 300   # Calibration samples
+    target_size_mb: 10                 # Max model size
+
+  onnx:
+    opset_version: 17
+    dynamic_axes: false                # Fixed input size for mobile
+
+hardware:
+  device: "auto"                       # auto-detect GPU/CPU
+  mixed_precision: true                # FP16 training (faster on T4/P100)
+  compile_model: false                 # torch.compile (PyTorch 2.0+)
