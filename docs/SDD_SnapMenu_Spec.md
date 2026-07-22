@@ -5,9 +5,9 @@
 
 | Campo | Detalle |
 |-------|---------|
-| **Versión** | 1.0.0 |
+| **Versión** | 1.1.0 |
 | **Fecha** | 2026-07-22 |
-| **Estado** | Borrador Inicial |
+| **Estado** | Borrador — Alcance Ampliado |
 | **Clasificación** | Confidencial — Uso Interno |
 | **Estándares** | IEEE 1016 (SDD), ISO/IEC/IEEE 42010:2022, SOLID, OWASP, WCAG 2.1 |
 | **Autor** | Equipo de Desarrollo MenuAI |
@@ -63,35 +63,267 @@ El sistema resuelve el problema cotidiano de "¿qué cocino con lo que tengo?" e
 
 ### 2.1 Dentro del Alcance (In-Scope)
 
-| # | Funcionalidad |
-|---|---------------|
-| 1 | Captura de imagen en tiempo real mediante cámara del dispositivo |
-| 2 | Detección y clasificación de ingredientes usando modelo CNN entrenado |
-| 3 | Cuestionario inteligente de restricciones (alergias, intolerancias, contraindicaciones médicas) |
-| 4 | Motor de sugerencia de menú basado en ingredientes detectados + perfil del usuario |
-| 5 | Persistencia del perfil dietético del usuario |
-| 6 | Historial de menús sugeridos |
-| 7 | Soporte multi-idioma (ES/EN inicialmente) |
-| 8 | Modo offline para inferencia del modelo |
+| # | Funcionalidad | Descripción Detallada | Prioridad | Release |
+|---|---------------|----------------------|-----------|---------|
+| 1 | Captura de imagen en tiempo real mediante cámara del dispositivo | Stream de video en vivo con preview, soporte para cámara frontal/trasera, flash, autofocus. Captura continua de frames para detección sin necesidad de foto explícita. | **P0 — Crítica** | v1.0 |
+| 2 | Detección y clasificación de ingredientes usando modelo CNN entrenado | Modelo YOLOv8n customizado ejecutándose on-device. Detección multi-objeto simultánea (≥5 ingredientes). Bounding boxes con labels y score de confianza en overlay sobre el preview. | **P0 — Crítica** | v1.0 |
+| 3 | Confirmación y edición manual de ingredientes | El usuario puede confirmar, eliminar o agregar ingredientes manualmente post-detección. Modo acumulativo para múltiples escaneos. Búsqueda por texto con autocompletado. | **P0 — Crítica** | v1.0 |
+| 4 | Cuestionario inteligente de restricciones de salud | Wizard progresivo (máx. 5 pantallas) para capturar: alergias, intolerancias, contraindicaciones médicas y preferencias dietéticas. Contextual (se activa solo cuando es relevante). | **P0 — Crítica** | v1.0 |
+| 5 | Motor de sugerencia de menú personalizado | Algoritmo de matching: ingredientes detectados ∩ catálogo de recetas — restricciones del perfil. Scoring por relevancia, dificultad y preferencias. Mínimo 3 sugerencias por sesión. | **P0 — Crítica** | v1.0 |
+| 6 | Persistencia cifrada del perfil dietético | Almacenamiento local con AES-256-GCM. Sincronización opt-in a cloud. Incluye alergias, intolerancias, condiciones médicas, preferencias de cocina y nivel de dificultad. | **P0 — Crítica** | v1.0 |
+| 7 | Detalle de receta completa | Vista detallada con: ingredientes con cantidades, pasos de preparación, tiempo estimado, info nutricional básica, señalización de alérgenos presentes. | **P1 — Alta** | v1.0 |
+| 8 | Historial de sesiones y menús sugeridos | Registro cronológico de escaneos: ingredientes detectados, menú seleccionado, fecha/hora. Búsqueda y filtro por ingrediente/fecha. | **P1 — Alta** | v1.0 |
+| 9 | Sistema de favoritos | Guardar recetas favoritas con organización por tags/categorías propias del usuario. Acceso rápido desde navegación principal. | **P1 — Alta** | v1.0 |
+| 10 | Modo offline completo para core features | Detección de ingredientes + sugerencia de menú básica sin conexión a internet. Cache local de recetas más comunes. Sincronización delta cuando hay conexión. | **P0 — Crítica** | v1.0 |
+| 11 | Soporte multi-idioma | Español (LATAM) + Inglés en v1. Arquitectura preparada para extensión a otros idiomas. Todos los strings externalizados. | **P1 — Alta** | v1.0 |
+| 12 | Onboarding interactivo | Tutorial de 3 pantallas (máx. 60s) explicando la propuesta de valor. Opcional y omitible. | **P2 — Media** | v1.0 |
+| 13 | Actualización OTA del modelo ML | Descarga en background de nuevas versiones del modelo. Rollback automático si crash rate > 1%. | **P1 — Alta** | v1.1 |
+| 14 | Preguntas contextuales proactivas | Si se detecta un ingrediente potencialmente alérgeno y el perfil está incompleto, se pregunta contextualmente (máx. 1 por sesión). | **P2 — Media** | v1.1 |
+| 15 | Aprendizaje de preferencias | El sistema mejora sugerencias con el tiempo basándose en aceptaciones/rechazos del usuario. Feedback loop implícito. | **P2 — Media** | v1.1 |
+
+#### 2.1.1 Mapa de Features por Módulo
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                    FEATURES MAP — SnapMenu v1.0                        │
+│                                                                        │
+│  ┌─────────────────────────────────┐  ┌────────────────────────────┐  │
+│  │   MÓDULO: DETECCIÓN VISUAL      │  │  MÓDULO: PERFIL DE SALUD   │  │
+│  │                                 │  │                            │  │
+│  │  • Stream cámara en vivo        │  │  • Wizard de alergias      │  │
+│  │  • Detección multi-ingrediente  │  │  • Wizard de intolerancias │  │
+│  │  • Bounding boxes + labels      │  │  • Contraindicaciones      │  │
+│  │  • Edición manual de lista      │  │  • Preferencias dietéticas │  │
+│  │  • Modo acumulativo             │  │  • Cifrado AES-256         │  │
+│  │  • Feedback visual (confianza)  │  │  • Preguntas contextual.   │  │
+│  │                                 │  │  • CRUD completo           │  │
+│  └─────────────────────────────────┘  └────────────────────────────┘  │
+│                                                                        │
+│  ┌─────────────────────────────────┐  ┌────────────────────────────┐  │
+│  │   MÓDULO: MOTOR DE MENÚ        │  │  MÓDULO: HISTORIAL/FAV     │  │
+│  │                                 │  │                            │  │
+│  │  • Matching ingredientes-recetas│  │  • Lista cronológica       │  │
+│  │  • Filtrado por restricciones   │  │  • Búsqueda y filtros      │  │
+│  │  • Scoring y ranking            │  │  • Favoritos con tags      │  │
+│  │  • Mín. 3 sugerencias          │  │  • Tracking aceptar/rech.  │  │
+│  │  • Detalle de receta            │  │  • Aprendizaje implícito   │  │
+│  │  • Info nutricional             │  │  • Export de datos         │  │
+│  │  • Alternativas si descarta     │  │                            │  │
+│  └─────────────────────────────────┘  └────────────────────────────┘  │
+│                                                                        │
+│  ┌─────────────────────────────────────────────────────────────────┐  │
+│  │   MÓDULO: TRANSVERSAL (Cross-Cutting)                            │  │
+│  │                                                                  │  │
+│  │  • Offline-first  • i18n (ES/EN)  • Onboarding  • OTA Model    │  │
+│  │  • Analytics      • Logging       • Auth         • Dark Mode    │  │
+│  └─────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.1.2 Flujo de Valor Principal (Value Stream)
+
+```
+┌────────────────────── USER VALUE STREAM ──────────────────────────────┐
+│                                                                        │
+│  [PROBLEMA]          [ACCIÓN]           [RESULTADO]     [VALOR]       │
+│                                                                        │
+│  "¿Qué cocino       Apuntar cámara     Ingredientes    Inspiración   │
+│   con lo que        a los ingredientes   detectados      instantánea  │
+│   tengo?"                                                              │
+│       │                   │                   │              │         │
+│       ▼                   ▼                   ▼              ▼         │
+│  "¿Es seguro         Sistema verifica    Restricciones    Seguridad   │
+│   para mí?"          perfil de salud     aplicadas        alimentaria │
+│       │                   │                   │              │         │
+│       ▼                   ▼                   ▼              ▼         │
+│  "No sé qué          Motor sugiere       3+ opciones     Decisión    │
+│   preparar"          menú personalizado   rankeadas       sin esfuerzo│
+│       │                   │                   │              │         │
+│       ▼                   ▼                   ▼              ▼         │
+│  "Quiero algo        Detalle paso a paso  Receta con      Confianza   │
+│   que pueda           con info completa   tiempos, info   para cocinar│
+│   hacer"                                  nutricional                  │
+│                                                                        │
+│  TIEMPO TOTAL: < 3 minutos desde escaneo hasta receta seleccionada   │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
 ### 2.2 Fuera del Alcance (Out-of-Scope) — v1.0
 
-- Compra automática de ingredientes faltantes
-- Integración con dispositivos IoT de cocina
-- Generación de contenido de video/recetas paso a paso
-- Funcionalidad social (compartir menús)
-- Integración con expedientes médicos electrónicos
+| # | Funcionalidad Excluida | Justificación | Roadmap Potencial |
+|---|------------------------|---------------|-------------------|
+| 1 | Compra automática de ingredientes faltantes | Complejidad de integración con marketplaces locales; requiere partnerships | v2.0+ (integración con apps de delivery) |
+| 2 | Integración con dispositivos IoT de cocina | Fragmentación de protocolos; nicho reducido de usuarios con IoT | v3.0+ (si hay demanda validada) |
+| 3 | Generación de contenido de video/recetas paso a paso | Alto costo de producción de contenido; requiere equipo de content | v2.0+ (UGC o partnerships con chefs) |
+| 4 | Funcionalidad social (compartir menús, seguir usuarios) | Complejidad de moderación y comunidad; distrae del core value | v2.0+ (si métricas de retención lo justifican) |
+| 5 | Integración con expedientes médicos electrónicos (EHR/HCE) | Regulación compleja (HIPAA/normativas locales); certificaciones requeridas | Evaluación post-v2.0 |
+| 6 | Planificación semanal de menú automática | Requiere motor más sofisticado (variedad, nutrición semanal) | v1.2 — extensión natural del motor |
+| 7 | Lista de compras generada automáticamente | Depende de base de datos de ingredientes con cantidades exactas | v1.1 — feature complementaria |
+| 8 | Detección de ingredientes por voz/texto libre NLP | Scope adicional de NLP; la cámara es el diferenciador | v2.0+ (input multimodal) |
+| 9 | Soporte para restricciones religiosas avanzadas (Halal, Kosher certificado) | Requiere certificaciones y validación con autoridades religiosas | v1.2 (como preferencias básicas en v1.0) |
+| 10 | Cálculo nutricional preciso por porción | Requiere base de datos nutricional certificada; responsabilidad legal | v1.1 (info nutricional indicativa en v1.0) |
+
+#### 2.2.1 Criterios para Inclusión Futura
+
+Un feature se evalúa para inclusión en releases futuros según:
+
+```
+┌──────────────── FRAMEWORK DE PRIORIZACIÓN (RICE) ─────────────────┐
+│                                                                    │
+│  SCORE = (Reach × Impact × Confidence) / Effort                   │
+│                                                                    │
+│  Reach:      ¿A cuántos usuarios impacta? (usuarios/quarter)     │
+│  Impact:     ¿Cuánto mejora la experiencia? (0.25 / 0.5 / 1 / 2 / 3) │
+│  Confidence: ¿Cuán seguros estamos de los estimados? (0-100%)    │
+│  Effort:     ¿Cuántas persona-semanas requiere? (person-weeks)   │
+│                                                                    │
+│  Umbral de inclusión: RICE score > 5.0 para consideración         │
+│  Validación adicional: entrevistas con ≥ 5 usuarios potenciales   │
+└────────────────────────────────────────────────────────────────────┘
+```
 
 ### 2.3 Supuestos y Restricciones
 
-| Tipo | Descripción |
-|------|-------------|
-| **Supuesto** | El usuario cuenta con un dispositivo con cámara de al menos 5MP |
-| **Supuesto** | Existe conectividad para sincronización, pero la inferencia funciona offline |
-| **Supuesto** | El dataset de entrenamiento cubre las categorías iniciales (palta, pollo, papas, cerdo, etc.) |
-| **Restricción** | El modelo debe ejecutarse en dispositivo (edge inference) con latencia < 2s |
-| **Restricción** | Cumplimiento con GDPR/LGPD para datos de salud del usuario |
-| **Restricción** | Tamaño del modelo optimizado para dispositivos con ≥ 3GB RAM |
+#### 2.3.1 Supuestos del Proyecto
+
+| ID | Supuesto | Riesgo si es Falso | Plan de Mitigación |
+|----|----------|--------------------|--------------------|
+| SUP-01 | El usuario cuenta con un dispositivo con cámara de al menos 5MP | Detecciones de baja calidad; falsos negativos altos | Guía de "cámara mínima recomendada"; preprocessing más agresivo; modo galería como fallback |
+| SUP-02 | Existe conectividad para sincronización, pero la inferencia funciona offline | Si no hay nunca conectividad, no hay nuevas recetas ni model updates | Cache amplio de recetas (~500) pre-instalado; modelo base incluido en APK |
+| SUP-03 | El dataset de entrenamiento cubre las categorías iniciales (palta, pollo, papas, cerdo, etc.) | Modelo con baja precisión en v1 | Transfer learning desde COCO dataset; active learning post-launch para expandir |
+| SUP-04 | Los usuarios están dispuestos a compartir datos de salud (opt-in) | Baja adopción del perfil → sugerencias genéricas | El sistema funciona SIN perfil (sugerencias no filtradas); el perfil mejora pero no bloquea |
+| SUP-05 | El mercado objetivo tiene acceso a smartphones con ≥ 3GB RAM | Modelo no corre en devices low-end | Versión "lite" del modelo (~3MB) con menos precisión pero funcional para 2GB RAM |
+| SUP-06 | Existe un catálogo de recetas suficiente (≥500) para arrancar | Sugerencias repetitivas; baja retención | Partnership con APIs de recetas existentes (Spoonacular, Edamam); contenido curado manualmente |
+| SUP-07 | Los usuarios entienden el concepto de "apuntar la cámara" sin mucha explicación | Fricción en onboarding; abandono | Onboarding visual; animación guiada; tooltip en primer uso |
+
+#### 2.3.2 Restricciones del Proyecto
+
+| ID | Tipo | Restricción | Impacto en Diseño |
+|----|------|-------------|-------------------|
+| RES-01 | **Técnica** | El modelo ML debe ejecutarse on-device (edge inference) con latencia < 2s | Limita complejidad del modelo; requiere quantización; excluye modelos >100MB |
+| RES-02 | **Legal/Regulatoria** | Cumplimiento con GDPR (EU), LGPD (Brasil) y ley de protección de datos peruana para datos de salud | Consentimiento explícito; data minimization; derecho al olvido; cifrado obligatorio |
+| RES-03 | **Técnica** | Tamaño total de la app (con modelo incluido) ≤ 150MB | Modelo quantizado (INT8); assets comprimidos; lazy loading de recursos no críticos |
+| RES-04 | **Técnica** | Soporte mínimo: Android 8.0+ (API 26) / iOS 14+ | Limita uso de APIs más recientes; requiere compatibility testing en devices antiguos |
+| RES-05 | **Ética/Legal** | La app NO puede dar consejo médico ni nutricional profesional | Disclaimers obligatorios; lenguaje indicativo ("sugerencia") no prescriptivo; no calcular dietas |
+| RES-06 | **Negocio** | Time-to-market: MVP funcional en ≤ 4 meses desde inicio de desarrollo | Scope reducido para v1.0; priorización estricta; features no P0 van a backlog |
+| RES-07 | **Técnica** | Las imágenes capturadas por la cámara NUNCA deben persistir ni transmitirse | Procesamiento in-memory exclusivamente; no cache de frames; no analytics con imágenes |
+| RES-08 | **Técnica** | Consumo de batería durante escaneo activo (5 min) ≤ 5% | Throttling de FPS en inferencia (5-10 FPS, no 30); GPU delegate si disponible; early stop |
+| RES-09 | **Operativa** | Equipo de desarrollo reducido (3-5 personas) | Clean Architecture para paralelizar features; CI/CD desde día 1; priorización agresiva |
+| RES-10 | **Datos** | No usar datos de usuarios para reentrenamiento sin consentimiento explícito | Opt-in claro y separado para contribuir datos; anonimización obligatoria si se acepta |
+
+#### 2.3.3 Dependencias Externas
+
+| ID | Dependencia | Proveedor | Riesgo | Contingencia |
+|----|-------------|-----------|--------|--------------|
+| DEP-01 | API de Cámara del SO | Google (Android) / Apple (iOS) | Cambios breaking en APIs | Abstracción via plugin; pinning de versiones; adapter pattern |
+| DEP-02 | TensorFlow Lite Runtime | Google | Deprecación o cambio de API | Migración a ONNX Runtime como alternativa viable (ADR-001) |
+| DEP-03 | Catálogo de recetas | API externa (Spoonacular/Edamam) + DB propia | API caída; rate limits; costos | Cache local robusto; fallback a recetas pre-cargadas; múltiples fuentes |
+| DEP-04 | Firebase / Cloud Services | Google Cloud | Outage; cambios de pricing | Abstracción del backend; posibilidad de migrar a AWS/Azure |
+| DEP-05 | Flutter Framework | Google | Breaking changes entre major versions | Pinning de versión; migración planificada por major version |
+| DEP-06 | Dataset de entrenamiento | Equipo interno + fuentes abiertas | Insuficiente cantidad o calidad | Augmentation agresiva; Active Learning; crowdsourcing opt-in post-launch |
+
+### 2.4 Usuarios Objetivo (Target Audience)
+
+#### 2.4.1 Personas
+
+| Persona | Perfil | Motivación Principal | Pain Point |
+|---------|--------|---------------------|------------|
+| **Ana, 28** | Profesional joven, cocina ocasional, alergia al gluten | Quiere ideas rápidas con lo que compró | No sabe qué preparar; pierde tiempo buscando recetas "gluten-free" |
+| **Carlos, 42** | Padre de familia, cocina diaria, hipertensión leve | Necesita variar menú familiar respetando restricciones | Siempre hace lo mismo; no recuerda qué ingredientes debe evitar |
+| **María, 65** | Jubilada, le gusta cocinar, diabetes tipo 2 | Quiere explorar recetas nuevas que pueda comer | Las recetas online no consideran su condición; tiene miedo de cocinar "mal" |
+| **Diego, 22** | Estudiante universitario, bajo presupuesto, vegetariano | Aprovechar al máximo los pocos ingredientes que tiene | No tiene tiempo ni experiencia; quiere algo fácil y rápido |
+
+#### 2.4.2 Escenarios de Uso Principales
+
+```
+┌─────────────────── ESCENARIOS DE USO ─────────────────────────────────┐
+│                                                                        │
+│  ESCENARIO 1: "Cocina del día a día"                                  │
+│  ─────────────────────────────────────                                 │
+│  Actor: Ana (profesional, alergia al gluten)                          │
+│  Contexto: Llega a casa del trabajo, abre la nevera                   │
+│  Acción: Escanea pollo, pimiento, arroz                               │
+│  Resultado: 3 opciones sin gluten en < 1 minuto                      │
+│  Frecuencia: 3-5 veces por semana                                     │
+│                                                                        │
+│  ESCENARIO 2: "Planificación con restricciones"                       │
+│  ─────────────────────────────────────                                 │
+│  Actor: Carlos (padre, hipertensión)                                   │
+│  Contexto: Quiere cocinar algo diferente para la familia              │
+│  Acción: Escanea ingredientes del mercado; sistema filtra por sodio   │
+│  Resultado: Menú familiar bajo en sal con ingredientes frescos        │
+│  Frecuencia: 2-3 veces por semana                                     │
+│                                                                        │
+│  ESCENARIO 3: "Exploración segura"                                    │
+│  ─────────────────────────────────────                                 │
+│  Actor: María (diabetes tipo 2)                                        │
+│  Contexto: Quiere probar algo nuevo pero tiene miedo                  │
+│  Acción: Escanea verduras y pollo; sistema excluye alto IG            │
+│  Resultado: Recetas con info nutricional + badge "apta para diabetes" │
+│  Frecuencia: 1-2 veces por semana                                     │
+│                                                                        │
+│  ESCENARIO 4: "Máximo rendimiento con poco"                           │
+│  ─────────────────────────────────────                                 │
+│  Actor: Diego (estudiante, vegetariano, bajo presupuesto)             │
+│  Contexto: Solo tiene papas, huevos y tomate                          │
+│  Acción: Escanea los 3 ingredientes; pide "fácil y rápido"           │
+│  Resultado: Tortilla española, papa rellena, etc. (todo < 30 min)    │
+│  Frecuencia: 4-6 veces por semana                                     │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.5 Contexto de Negocio
+
+#### 2.5.1 Propuesta de Valor Única (UVP)
+
+| Diferenciador | SnapMenu | Competidores (Yummly, SuperCook, etc.) |
+|---------------|----------|----------------------------------------|
+| **Input visual (cámara)** | Detección automática por IA | Input manual de ingredientes |
+| **Seguridad alimentaria** | Perfil de salud integrado; exclusión automática | Filtros básicos opcionales |
+| **Inferencia offline** | Funciona sin internet | Requieren conexión |
+| **Privacidad** | Imágenes nunca salen del dispositivo | Cloud processing |
+| **Contextualidad** | Preguntas inteligentes cuando detecta riesgo | Sin alertas proactivas |
+| **Personalización** | Aprende de preferencias implícitas | Recomendaciones genéricas |
+
+#### 2.5.2 Modelo de Monetización (Consideraciones para v2+)
+
+| Modelo | Descripción | Viabilidad |
+|--------|-------------|------------|
+| **Freemium** | Core gratis; premium = más recetas, planificación semanal, analytics nutricional | Alta — bajo costo de adquisición |
+| **Partnership B2B** | Integración con supermercados/delivery para sugerir compras | Media — requiere partnerships |
+| **White-label** | Licencia a nutricionistas/clínicas para uso con pacientes | Media-alta — canal profesional |
+| **Afiliados** | Comisión por compras de ingredientes sugeridos vía delivery apps | Baja en v1 — requiere volumen |
+
+> **Nota:** El modelo de monetización NO afecta el alcance de v1.0. Se documenta como contexto para decisiones arquitectónicas que deben soportar extensibilidad futura.
+
+### 2.6 Roadmap de Alto Nivel
+
+```
+┌────────────────────── ROADMAP — SnapMenu ─────────────────────────────┐
+│                                                                        │
+│  Q3 2026 ──────── Q4 2026 ──────── Q1 2027 ──────── Q2 2027          │
+│                                                                        │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐        │
+│  │  v1.0    │    │  v1.1    │    │  v1.2    │    │  v2.0    │        │
+│  │  MVP     │    │  Polish  │    │  Expand  │    │  Social  │        │
+│  ├──────────┤    ├──────────┤    ├──────────┤    ├──────────┤        │
+│  │• Detección│   │• OTA model│   │• +100 ingr│   │• Compartir│       │
+│  │• Perfil   │   │• Lista de │   │• Planific.│   │• Community│       │
+│  │• Motor    │   │  compras  │   │  semanal  │   │• Video    │       │
+│  │• Historial│   │• Learning │   │• Halal/   │   │  recetas  │       │
+│  │• Offline  │   │  from user│   │  Kosher   │   │• IoT      │       │
+│  │• i18n     │   │• +Idiomas │   │• Nutri    │   │• B2B      │       │
+│  │           │   │• Analytics│   │  detallada│   │           │       │
+│  └──────────┘    └──────────┘    └──────────┘    └──────────┘        │
+│                                                                        │
+│  MÉTRICAS CLAVE POR RELEASE:                                          │
+│  v1.0: 1K descargas, DAU > 20%, crash-free > 99%                    │
+│  v1.1: 5K descargas, retención D7 > 40%, NPS > 7                    │
+│  v1.2: 15K descargas, retención D30 > 25%                           │
+│  v2.0: 50K descargas, revenue positivo                               │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
